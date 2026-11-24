@@ -1,0 +1,29 @@
+name: SAFYLIFE — traductions candidates des modules restants
+on:
+  push:
+    branches: [dev/traductions-restantes]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  traduire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [pt, de, it, ar, zh, hi]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --disable-pip-version-check ctranslate2==4.6.0 sentencepiece==0.2.1
+      - name: Générer un dictionnaire local à relire
+        run: python releases-dev/generate-locale-candidates.py ${{ matrix.lang }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: locale-${{ matrix.lang }}
+          path: locale-${{ matrix.lang }}.json
