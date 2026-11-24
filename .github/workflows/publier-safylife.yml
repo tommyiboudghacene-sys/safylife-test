@@ -24,7 +24,7 @@ jobs:
       - name: Récupérer le code proposé
         uses: actions/checkout@v4
         with:
-          ref: '946a0971c8f832f2dfcfc8acdeecc0d709aae41e'
+          ref: '876e445f6cc87d478b4fc5f9b87783f7e6ccec82'
           persist-credentials: false
       - name: Configurer Node.js
         uses: actions/setup-node@v4
@@ -97,6 +97,12 @@ jobs:
         run: |
           echo 'fe55376c64c422392dd14163d9c02e5e1131e096c0e59b3c85bcb84335a6cdfd  ../releases-dev/SAFYLIFE_TRILINGUE.patch.gz' | sha256sum -c -
           gzip -dc ../releases-dev/SAFYLIFE_TRILINGUE.patch.gz | patch -p1 --batch --forward
+      - name: Intégrer les six langues SOS supplémentaires
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'cf83e94fa1527842755a232db64ac0ebf84d838c5db41debd66b9759be7ab9d5  ../releases-dev/SAFYLIFE_9_LANGUES.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_9_LANGUES.patch.gz | patch -p1 --batch --forward
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
@@ -106,7 +112,15 @@ jobs:
         run: |
           npm run qa
           node scripts/audit-emergency-sources.mjs
-      - name: Préparer la PWA trilingue vérifiée
+      - name: Vérifier les six nouvelles interfaces SOS
+        working-directory: _source
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check playwright
+          .venv/bin/python -m playwright install --with-deps chromium
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          .venv/bin/python scripts/test-extra-sos-dom.py
+      - name: Préparer la PWA vérifiée
         run: |
           set -euo pipefail
           cp -a _source/public _site
@@ -116,7 +130,7 @@ jobs:
           test -s _site/manifest.webmanifest
           test -s _site/icons/icon-192.png
           python3 -c 'import json; m=json.load(open("_site/manifest.webmanifest")); assert m["scope"]=="./" and m["start_url"]=="./"'
-          printf '%s\n' '{"source_commit":"946a0971c8f832f2dfcfc8acdeecc0d709aae41e","destinations":237,"languages":["fr","en","es"],"status":"test"}' > _site/build-info.json
+          printf '%s\n' '{"source_commit":"876e445f6cc87d478b4fc5f9b87783f7e6ccec82","destinations":237,"main_languages":["fr","en","es"],"additional_sos_languages":["pt","de","it","ar","zh","hi"],"status":"test"}' > _site/build-info.json
       - name: Configurer GitHub Pages
         uses: actions/configure-pages@v5
         with:
