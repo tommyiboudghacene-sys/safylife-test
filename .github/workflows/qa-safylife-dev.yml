@@ -41,7 +41,16 @@ jobs:
       - name: Appliquer le correctif RC1 vérifié
         working-directory: _source
         shell: bash
-        run: gzip -dc ../releases-dev/SAFYLIFE_RC1.patch.gz | patch -p1 --batch --forward
+        run: |
+          gzip -dc ../releases-dev/SAFYLIFE_RC1.patch.gz | patch -p1 --batch --forward
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/audit-emergency-sources.mjs')
+          s=p.read_text()
+          old="'police-mobile', 'police-landline'].includes"
+          assert s.count(old)==1, "Unexpected audit schema"
+          p.write_text(s.replace(old, "'police-mobile', 'police-landline', 'fire'].includes"))
+          PY
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
