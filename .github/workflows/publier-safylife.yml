@@ -1,0 +1,47 @@
+name: Publier SAFYLIFE (site de test)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publication:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+      - name: Décompresser la PWA vérifiée
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          unzip -q SAFYLIFE_PWA.zip -d _site
+          touch _site/.nojekyll
+          test -s _site/index.html
+          test -s _site/sw.js
+          test -s _site/manifest.webmanifest
+          test -s _site/icons/icon-192.png
+          python3 -c 'import json; m=json.load(open("_site/manifest.webmanifest")); assert m["scope"]=="./" and m["start_url"]=="./"; print("Manifeste relatif valide")'
+      - name: Configurer GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Préparer les fichiers du site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Publier le site
+        id: deploiement
+        uses: actions/deploy-pages@v4
