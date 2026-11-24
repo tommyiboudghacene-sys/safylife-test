@@ -1,0 +1,81 @@
+name: SAFYLIFE — tests du lot de développement
+on:
+  push:
+    branches:
+      - dev/fiabilisation-sos-v012
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Récupérer le code proposé
+        uses: actions/checkout@v4
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Vérifier les archives et empreintes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,hashlib,zipfile,pathlib
+          base=pathlib.Path('releases-dev')
+          index=json.loads((base/'SAFYLIFE_v0_12_CHECKSUMS.json').read_text())
+          for name in ['SAFYLIFE_v0_12_SOURCE_DEV.zip','SAFYLIFE_v0_12_PWA_DEV.zip']:
+              info=index['files'][name]
+              content=(base/name).read_bytes()
+              assert len(content)==info['bytes'], f'{name}: incorrect size'
+              assert hashlib.sha256(content).hexdigest()==info['sha256'], f'{name}: incorrect sha256'
+              with zipfile.ZipFile(base/name) as z:
+                  assert z.testzip() is None
+          print('Both source and PWA archive checksums verified')
+          PY
+      - name: Extraire le projet source existant
+        shell: bash
+        run: mkdir -p _source && unzip -q releases-dev/SAFYLIFE_v0_12_SOURCE_DEV.zip -d _source
+      - name: Installer les dépendances du projet
+        working-directory: _source
+        run: npm ci --no-audit --no-fund
+      - name: Exécuter tous les tests QA et le contrôle des pays
+        working-directory: _source
+        shell: bash
+        run: |
+          npm run qa
+          node scripts/audit-emergency-sources.mjs
+      - name: Installer Chromium pour les tests réels du site hors connexion
+        working-directory: _source
+        shell: bash
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check playwright
+          .venv/bin/python -m playwright install --with-deps chromium
+      - name: Tester la PWA réelle hors connexion dans Chromium
+        working-directory: _source
+        shell: bash
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          .venv/bin/python scripts/test-pwa-real.py public 18781 > pwa-browser-report.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('pwa-browser-report.json'))
+          assert d.get('sw_controlled') is True
+          assert len(d.get('offline_route_text_len',{}))==14
+          assert min(d['offline_route_text_len'].values())>0
+          assert d['cold_offline_sos_len']>100
+          assert not d.get('page_errors'), d.get('page_errors')
+          assert all(not violations for violations in d.get('axe',{}).values()), d.get('axe')
+          print('Real Chromium PWA: 14/14 offline routes, cold SOS, axe and JS errors PASS')
+          PY
+      - name: Tester le SOS en français, anglais et espagnol
+        working-directory: _source
+        shell: bash
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          mkdir -p /tmp/safylife-shots
+          .venv/bin/python scripts/smoke-sos-i18n.py public 18782 /tmp/safylife-shots
+          .venv/bin/python scripts/test-sos-regression-dom.py
