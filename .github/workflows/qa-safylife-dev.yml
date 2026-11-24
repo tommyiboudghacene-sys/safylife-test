@@ -74,6 +74,12 @@ jobs:
                   assert hashlib.sha256(data).hexdigest()==manifest[name]
                   Path(name).write_bytes(data)
           PY
+      - name: Intégrer le référentiel des 237 destinations
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'b2e9f618938ef58b416f1e0f49de2ab471d434acb48cd3133b8f395b7da3c66d  ../releases-dev/SAFYLIFE_237.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_237.patch.gz | patch -p1 --batch --forward
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
