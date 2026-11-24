@@ -80,6 +80,12 @@ jobs:
         run: |
           echo 'b2e9f618938ef58b416f1e0f49de2ab471d434acb48cd3133b8f395b7da3c66d  ../releases-dev/SAFYLIFE_237.patch.gz' | sha256sum -c -
           gzip -dc ../releases-dev/SAFYLIFE_237.patch.gz | patch -p1 --batch --forward
+      - name: Intégrer la localisation des modules et les recettes de validation
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'fe55376c64c422392dd14163d9c02e5e1131e096c0e59b3c85bcb84335a6cdfd  ../releases-dev/SAFYLIFE_TRILINGUE.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_TRILINGUE.patch.gz | patch -p1 --batch --forward
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
@@ -125,3 +131,15 @@ jobs:
           .venv/bin/python scripts/test-emergency-matrix-dom.py
           .venv/bin/python scripts/test-guide-i18n-dom.py
           node scripts/audit-international-review.mjs
+      - name: Tester les parcours familiaux et les jeux dans Chromium
+        working-directory: _source
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          .venv/bin/python scripts/test-family-i18n-dom.py
+          .venv/bin/python scripts/test-games-i18n-dom.py
+      - name: Tester la compatibilité Firefox et WebKit
+        working-directory: _source
+        run: |
+          .venv/bin/python -m playwright install --with-deps firefox webkit
+          SAFYLIFE_BROWSERS=firefox,webkit .venv/bin/python scripts/test-family-i18n-dom.py
+          SAFYLIFE_BROWSERS=firefox,webkit .venv/bin/python scripts/test-games-i18n-dom.py
