@@ -51,6 +51,9 @@ jobs:
           assert s.count(old)==1, "Unexpected audit schema"
           p.write_text(s.replace(old, "'police-mobile', 'police-landline', 'fire'].includes"))
           PY
+      - name: Appliquer l'extension des sept pays documentés
+        working-directory: _source
+        run: python3 ../releases-dev/extend-rc1-72.py
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
