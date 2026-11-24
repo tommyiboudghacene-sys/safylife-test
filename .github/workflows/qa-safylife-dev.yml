@@ -92,6 +92,12 @@ jobs:
         run: |
           echo 'cf83e94fa1527842755a232db64ac0ebf84d838c5db41debd66b9759be7ab9d5  ../releases-dev/SAFYLIFE_9_LANGUES.patch.gz' | sha256sum -c -
           gzip -dc ../releases-dev/SAFYLIFE_9_LANGUES.patch.gz | patch -p1 --batch --forward
+      - name: Intégrer les traductions globales et la préférence de langue
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'de16b23cdd565b42f71d48c2c459618fa3ead283e729de27bc556289cf4561a0  ../releases-dev/SAFYLIFE_GLOBAL_LOCALE.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_GLOBAL_LOCALE.patch.gz | patch -p1 --batch --forward
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
@@ -154,3 +160,8 @@ jobs:
         run: |
           export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
           .venv/bin/python scripts/test-extra-sos-dom.py
+      - name: Tester les écrans de préparation dans les six langues supplémentaires
+        working-directory: _source
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          .venv/bin/python scripts/test-extra-preparedness-dom.py
