@@ -1,0 +1,18 @@
+{
+  "release": "0.12.0-dev.1",
+  "date": "2026-11-24",
+  "files": {
+    "SAFYLIFE_v0_12_SOURCE_DEV.zip": {
+      "sha256": "a67e8533688ab87f9fb48ada16b88350d57861598ea479080fe3a392cd54a516",
+      "bytes": 579186
+    },
+    "SAFYLIFE_v0_12_PWA_DEV.zip": {
+      "sha256": "fcf93ceca916438be8d3cb947ac0fda63b76133d1f06725423d1bd521dea28af",
+      "bytes": 343465
+    },
+    "SAFYLIFE_v0_12_autonome_TEST.html": {
+      "sha256": "5e4f81953d89a9cf4b33ad4c76f288997d557492c0c287a4ef4381d57f8fcc90",
+      "bytes": 712696
+    }
+  }
+}
