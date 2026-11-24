@@ -54,6 +54,26 @@ jobs:
       - name: Appliquer l'extension des sept pays documentés
         working-directory: _source
         run: python3 ../releases-dev/extend-rc1-72.py
+      - name: Intégrer le lot consolidé trilingue
+        working-directory: _source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import tarfile, json, hashlib
+          from pathlib import Path
+          archive=Path('../releases-dev/SAFYLIFE_LOT_TRILINGUE.tar.gz')
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()=='44657060d64add04e6ec2bc7c9a759292ad2bae0ce373d199497e5a80f6b1294'
+          expected={'src/app/fr-secours.ts','src/app/fr-terrain.ts','src/app/fr-world.ts','src/app/guide.ts','src/app/home-i18n.ts','src/app/sos-international.ts','tests/guide-i18n.test.ts','tests/world.test.ts','scripts/audit-international-review.mjs','scripts/test-guide-i18n-dom.py'}
+          with tarfile.open(archive,'r:gz') as t:
+              assert {m.name for m in t.getmembers()}==expected|{'SHA256.json'}
+              assert all(m.isfile() for m in t.getmembers())
+              manifest=json.load(t.extractfile('SHA256.json'))
+              assert set(manifest)==expected
+              for name in sorted(expected):
+                  data=t.extractfile(name).read()
+                  assert hashlib.sha256(data).hexdigest()==manifest[name]
+                  Path(name).write_bytes(data)
+          PY
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
@@ -97,3 +117,5 @@ jobs:
           if [ ! -x /usr/bin/chromium ]; then sudo ln -s "$CHROME" /usr/bin/chromium; fi
           .venv/bin/python scripts/test-sos-regression-dom.py
           .venv/bin/python scripts/test-emergency-matrix-dom.py
+          .venv/bin/python scripts/test-guide-i18n-dom.py
+          node scripts/audit-international-review.mjs
