@@ -38,6 +38,10 @@ jobs:
       - name: Extraire le projet source existant
         shell: bash
         run: mkdir -p _source && unzip -q releases-dev/SAFYLIFE_v0_12_SOURCE_DEV.zip -d _source
+      - name: Appliquer le correctif RC1 vérifié
+        working-directory: _source
+        shell: bash
+        run: gzip -dc ../releases-dev/SAFYLIFE_RC1.patch.gz | patch -p1 --batch --forward
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
@@ -78,4 +82,6 @@ jobs:
           export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
           mkdir -p /tmp/safylife-shots
           .venv/bin/python scripts/smoke-sos-i18n.py public 18782 /tmp/safylife-shots
+          if [ ! -x /usr/bin/chromium ]; then sudo ln -s "$CHROME" /usr/bin/chromium; fi
           .venv/bin/python scripts/test-sos-regression-dom.py
+          .venv/bin/python scripts/test-emergency-matrix-dom.py
