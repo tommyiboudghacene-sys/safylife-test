@@ -24,7 +24,7 @@ jobs:
       - name: Récupérer le code proposé
         uses: actions/checkout@v4
         with:
-          ref: 'd309cb5f669b2e2b99ad4b28193fdc84041b4eb9'
+          ref: 'ab2d69cb4bff1807e6a5d461c47700aae9790780'
           persist-credentials: false
       - name: Configurer Node.js
         uses: actions/setup-node@v4
@@ -140,7 +140,7 @@ jobs:
           s=p.read_text()
           assert s.count('<span>SAFYLIFE</span>')==1
           p.write_text(s.replace('<span>SAFYLIFE</span>','<span>SAFYLIFE<small style="display:block;font-size:.65rem;color:#526b68">v. '+build+'</small></span>'))
-          pathlib.Path('_site/build-info.json').write_text(json.dumps({'build':build,'source_commit':'d309cb5f669b2e2b99ad4b28193fdc84041b4eb9','destinations':237,'main_languages':['fr','en','es'],'additional_sos_languages':['pt','de','it','ar','zh','hi'],'status':'test'}))
+          pathlib.Path('_site/build-info.json').write_text(json.dumps({'build':build,'source_commit':'ab2d69cb4bff1807e6a5d461c47700aae9790780','destinations':237,'main_languages':['fr','en','es'],'additional_sos_languages':['pt','de','it','ar','zh','hi'],'status':'test'}))
           assert ('const BUILD = "'+build+'"') in pathlib.Path('_site/sw.js').read_text()
           PY
       - name: Tester la mise à jour depuis une ancienne installation
