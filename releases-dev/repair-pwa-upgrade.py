@@ -25,7 +25,7 @@ change('src/app/fr-main.ts','window.addEventListener("online", () => { void regi
 Path('public/mise-a-jour.html').write_text('''<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self'; object-src 'none'; base-uri 'none'"><title>SAFYLIFE — Mise à jour</title><style>body{font:18px/1.5 system-ui,sans-serif;background:#f5f7f4;color:#173e3d;max-width:38rem;margin:3rem auto;padding:1.25rem}button,a{display:inline-block;padding:.8rem 1.2rem;border:0;border-radius:.8rem;background:#236d69;color:white;font:inherit;text-decoration:none}button:disabled{opacity:.5}small{display:block;color:#526b68}</style></head><body><h1>SAFYLIFE</h1><h2>Mise à jour de l’application</h2><p id="status" role="status" aria-live="polite">Recherche de la dernière version…</p><p>Vos réserves, préférences et informations familiales ne sont pas effacées.</p><button id="retry" type="button" disabled>Réessayer</button><p><a href="./#/monde">Retour à SAFYLIFE</a></p><small>Une connexion Internet est nécessaire pour cette opération.</small><script src="mise-a-jour.js" defer></script></body></html>''')
 Path('public/mise-a-jour.js').write_text('''"use strict";
-const status = document.getElementById("status");
+const statusNode = document.getElementById("status");
 const retry = document.getElementById("retry");
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 function ask(worker) {
@@ -40,22 +40,21 @@ function ask(worker) {
 }
 async function update() {
   retry.disabled = true;
-  status.textContent = "Recherche de la dernière version…";
+  statusNode.textContent = "Recherche de la dernière version…";
   try {
     if (!navigator.onLine || !("serviceWorker" in navigator)) throw Error("Connexion Internet ou navigateur compatible nécessaire.");
     const response = await fetch("build-info.json?check=" + Date.now(), {cache:"no-store"});
     if (!response.ok) throw Error("La nouvelle version n’est pas accessible.");
     const info = await response.json();
     if (!/^[a-f0-9]{7}$/.test(info.build)) throw Error("Version non identifiable.");
-    const reg = await navigator.serviceWorker.register("sw.js", {updateViaCache:"none"});
-    await reg.update();
-    status.textContent = "Installation de la version " + info.build + " et vérification du cache…";
+    const reg = await navigator.serviceWorker.register("sw.js?build=" + encodeURIComponent(info.build), {scope:"./", updateViaCache:"none"});
+    statusNode.textContent = "Installation de la version " + info.build + " et vérification du cache…";
     const deadline = Date.now() + 45000;
     while (Date.now() < deadline) {
       const worker = navigator.serviceWorker.controller;
       const data = await ask(worker);
       if (data && data.type === "SAFYLIFE_OFFLINE_STATUS" && data.build === info.build && data.ready === true && data.count === data.total) {
-        status.textContent = "Mise à jour terminée : " + info.build;
+        statusNode.textContent = "Mise à jour terminée : " + info.build;
         location.replace("./#/monde");
         return;
       }
@@ -63,7 +62,7 @@ async function update() {
     }
     throw Error("La nouvelle version n’a pas encore été activée.");
   } catch (error) {
-    status.textContent = error.message + " Réessayez avec Internet. Vos données sont conservées.";
+    statusNode.textContent = error.message + " Réessayez avec Internet. Vos données sont conservées.";
     retry.disabled = false;
   }
 }
