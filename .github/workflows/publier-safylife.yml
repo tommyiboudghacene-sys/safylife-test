@@ -24,7 +24,7 @@ jobs:
       - name: Récupérer le code proposé
         uses: actions/checkout@v4
         with:
-          ref: '876e445f6cc87d478b4fc5f9b87783f7e6ccec82'
+          ref: 'd309cb5f669b2e2b99ad4b28193fdc84041b4eb9'
           persist-credentials: false
       - name: Configurer Node.js
         uses: actions/setup-node@v4
@@ -103,6 +103,9 @@ jobs:
         run: |
           echo 'cf83e94fa1527842755a232db64ac0ebf84d838c5db41debd66b9759be7ab9d5  ../releases-dev/SAFYLIFE_9_LANGUES.patch.gz' | sha256sum -c -
           gzip -dc ../releases-dev/SAFYLIFE_9_LANGUES.patch.gz | patch -p1 --batch --forward
+      - name: Réparer le renouvellement du cache PWA
+        working-directory: _source
+        run: python3 ../releases-dev/repair-pwa-upgrade.py
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
@@ -130,7 +133,18 @@ jobs:
           test -s _site/manifest.webmanifest
           test -s _site/icons/icon-192.png
           python3 -c 'import json; m=json.load(open("_site/manifest.webmanifest")); assert m["scope"]=="./" and m["start_url"]=="./"'
-          printf '%s\n' '{"source_commit":"876e445f6cc87d478b4fc5f9b87783f7e6ccec82","destinations":237,"main_languages":["fr","en","es"],"additional_sos_languages":["pt","de","it","ar","zh","hi"],"status":"test"}' > _site/build-info.json
+          python3 - <<'PY'
+          import json,os,pathlib
+          build=os.environ['GITHUB_SHA'][:7]
+          p=pathlib.Path('_site/index.html')
+          s=p.read_text()
+          assert s.count('<span>SAFYLIFE</span>')==1
+          p.write_text(s.replace('<span>SAFYLIFE</span>','<span>SAFYLIFE<small style="display:block;font-size:.65rem;color:#526b68">v. '+build+'</small></span>'))
+          pathlib.Path('_site/build-info.json').write_text(json.dumps({'build':build,'source_commit':'d309cb5f669b2e2b99ad4b28193fdc84041b4eb9','destinations':237,'main_languages':['fr','en','es'],'additional_sos_languages':['pt','de','it','ar','zh','hi'],'status':'test'}))
+          assert ('const BUILD = "'+build+'"') in pathlib.Path('_site/sw.js').read_text()
+          PY
+      - name: Tester la mise à jour depuis une ancienne installation
+        run: _source/.venv/bin/python releases-dev/test-pwa-upgrade.py _site SAFYLIFE_PWA.zip
       - name: Configurer GitHub Pages
         uses: actions/configure-pages@v5
         with:
@@ -142,3 +156,18 @@ jobs:
       - name: Publier le site
         id: deploiement
         uses: actions/deploy-pages@v4
+      - name: Vérifier la version réellement servie par GitHub Pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://tommyiboudghacene-sys.github.io/safylife-test'
+          for attempt in $(seq 1 12); do
+            if curl -fsS --max-time 15 "$base/build-info.json?check=${GITHUB_SHA}-$attempt" -o /tmp/safylife-live.json && python3 -c 'import os,json; assert json.load(open("/tmp/safylife-live.json"))["build"]==os.environ["GITHUB_SHA"][:7]'; then
+              curl -fsS --max-time 15 "$base/index.html?check=${GITHUB_SHA}" -o /tmp/safylife-index.html
+              grep -F "v. ${GITHUB_SHA:0:7}" /tmp/safylife-index.html
+              curl -fsS --max-time 15 "$base/mise-a-jour.html?check=${GITHUB_SHA}" | grep -F "mise-a-jour.js"
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
