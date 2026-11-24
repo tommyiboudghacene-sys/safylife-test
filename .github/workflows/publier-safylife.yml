@@ -21,19 +21,102 @@ jobs:
       name: github-pages
       url: ${{ steps.deploiement.outputs.page_url }}
     steps:
-      - name: Récupérer le dépôt
+      - name: Récupérer le code proposé
         uses: actions/checkout@v4
-      - name: Décompresser la PWA vérifiée
+        with:
+          ref: '946a0971c8f832f2dfcfc8acdeecc0d709aae41e'
+          persist-credentials: false
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Vérifier les archives et empreintes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,hashlib,zipfile,pathlib
+          base=pathlib.Path('releases-dev')
+          index=json.loads((base/'SAFYLIFE_v0_12_CHECKSUMS.json').read_text())
+          for name in ['SAFYLIFE_v0_12_SOURCE_DEV.zip','SAFYLIFE_v0_12_PWA_DEV.zip']:
+              info=index['files'][name]
+              content=(base/name).read_bytes()
+              assert len(content)==info['bytes'], f'{name}: incorrect size'
+              assert hashlib.sha256(content).hexdigest()==info['sha256'], f'{name}: incorrect sha256'
+              with zipfile.ZipFile(base/name) as z:
+                  assert z.testzip() is None
+          print('Both source and PWA archive checksums verified')
+          PY
+      - name: Extraire le projet source existant
+        shell: bash
+        run: mkdir -p _source && unzip -q releases-dev/SAFYLIFE_v0_12_SOURCE_DEV.zip -d _source
+      - name: Appliquer le correctif RC1 vérifié
+        working-directory: _source
+        shell: bash
+        run: |
+          gzip -dc ../releases-dev/SAFYLIFE_RC1.patch.gz | patch -p1 --batch --forward
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/audit-emergency-sources.mjs')
+          s=p.read_text()
+          old="'police-mobile', 'police-landline'].includes"
+          assert s.count(old)==1, "Unexpected audit schema"
+          p.write_text(s.replace(old, "'police-mobile', 'police-landline', 'fire'].includes"))
+          PY
+      - name: Appliquer l'extension des sept pays documentés
+        working-directory: _source
+        run: python3 ../releases-dev/extend-rc1-72.py
+      - name: Intégrer le lot consolidé trilingue
+        working-directory: _source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import tarfile, json, hashlib
+          from pathlib import Path
+          archive=Path('../releases-dev/SAFYLIFE_LOT_TRILINGUE.tar.gz')
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()=='44657060d64add04e6ec2bc7c9a759292ad2bae0ce373d199497e5a80f6b1294'
+          expected={'src/app/fr-secours.ts','src/app/fr-terrain.ts','src/app/fr-world.ts','src/app/guide.ts','src/app/home-i18n.ts','src/app/sos-international.ts','tests/guide-i18n.test.ts','tests/world.test.ts','scripts/audit-international-review.mjs','scripts/test-guide-i18n-dom.py'}
+          with tarfile.open(archive,'r:gz') as t:
+              assert {m.name for m in t.getmembers()}==expected|{'SHA256.json'}
+              assert all(m.isfile() for m in t.getmembers())
+              manifest=json.load(t.extractfile('SHA256.json'))
+              assert set(manifest)==expected
+              for name in sorted(expected):
+                  data=t.extractfile(name).read()
+                  assert hashlib.sha256(data).hexdigest()==manifest[name]
+                  Path(name).write_bytes(data)
+          PY
+      - name: Intégrer le référentiel des 237 destinations
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'b2e9f618938ef58b416f1e0f49de2ab471d434acb48cd3133b8f395b7da3c66d  ../releases-dev/SAFYLIFE_237.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_237.patch.gz | patch -p1 --batch --forward
+      - name: Intégrer la localisation des modules et les recettes de validation
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'fe55376c64c422392dd14163d9c02e5e1131e096c0e59b3c85bcb84335a6cdfd  ../releases-dev/SAFYLIFE_TRILINGUE.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_TRILINGUE.patch.gz | patch -p1 --batch --forward
+      - name: Installer les dépendances du projet
+        working-directory: _source
+        run: npm ci --no-audit --no-fund
+      - name: Exécuter tous les tests QA et le contrôle des pays
+        working-directory: _source
+        shell: bash
+        run: |
+          npm run qa
+          node scripts/audit-emergency-sources.mjs
+      - name: Préparer la PWA trilingue vérifiée
         run: |
           set -euo pipefail
-          mkdir -p _site
-          unzip -q SAFYLIFE_PWA.zip -d _site
+          cp -a _source/public _site
           touch _site/.nojekyll
           test -s _site/index.html
           test -s _site/sw.js
           test -s _site/manifest.webmanifest
           test -s _site/icons/icon-192.png
-          python3 -c 'import json; m=json.load(open("_site/manifest.webmanifest")); assert m["scope"]=="./" and m["start_url"]=="./"; print("Manifeste relatif valide")'
+          python3 -c 'import json; m=json.load(open("_site/manifest.webmanifest")); assert m["scope"]=="./" and m["start_url"]=="./"'
+          printf '%s\n' '{"source_commit":"946a0971c8f832f2dfcfc8acdeecc0d709aae41e","destinations":237,"languages":["fr","en","es"],"status":"test"}' > _site/build-info.json
       - name: Configurer GitHub Pages
         uses: actions/configure-pages@v5
         with:
