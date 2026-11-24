@@ -24,7 +24,7 @@ jobs:
       - name: Récupérer le code proposé
         uses: actions/checkout@v4
         with:
-          ref: 'ab2d69cb4bff1807e6a5d461c47700aae9790780'
+          ref: 'ee6d114fd6179a65340e2321441c7ba5e78835a9'
           persist-credentials: false
       - name: Configurer Node.js
         uses: actions/setup-node@v4
@@ -103,6 +103,12 @@ jobs:
         run: |
           echo 'cf83e94fa1527842755a232db64ac0ebf84d838c5db41debd66b9759be7ab9d5  ../releases-dev/SAFYLIFE_9_LANGUES.patch.gz' | sha256sum -c -
           gzip -dc ../releases-dev/SAFYLIFE_9_LANGUES.patch.gz | patch -p1 --batch --forward
+      - name: Intégrer les traductions globales
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'de16b23cdd565b42f71d48c2c459618fa3ead283e729de27bc556289cf4561a0  ../releases-dev/SAFYLIFE_GLOBAL_LOCALE.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_GLOBAL_LOCALE.patch.gz | patch -p1 --batch --forward
       - name: Réparer le renouvellement du cache PWA
         working-directory: _source
         run: python3 ../releases-dev/repair-pwa-upgrade.py
@@ -123,6 +129,7 @@ jobs:
           .venv/bin/python -m playwright install --with-deps chromium
           export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
           .venv/bin/python scripts/test-extra-sos-dom.py
+          .venv/bin/python scripts/test-extra-preparedness-dom.py
       - name: Préparer la PWA vérifiée
         run: |
           set -euo pipefail
@@ -140,7 +147,7 @@ jobs:
           s=p.read_text()
           assert s.count('<span>SAFYLIFE</span>')==1
           p.write_text(s.replace('<span>SAFYLIFE</span>','<span>SAFYLIFE<small style="display:block;font-size:.65rem;color:#526b68">v. '+build+'</small></span>'))
-          pathlib.Path('_site/build-info.json').write_text(json.dumps({'build':build,'source_commit':'ab2d69cb4bff1807e6a5d461c47700aae9790780','destinations':237,'main_languages':['fr','en','es'],'additional_sos_languages':['pt','de','it','ar','zh','hi'],'status':'test'}))
+          pathlib.Path('_site/build-info.json').write_text(json.dumps({'build':build,'source_commit':'ee6d114fd6179a65340e2321441c7ba5e78835a9','destinations':237,'main_languages':['fr','en','es'],'additional_sos_languages':['pt','de','it','ar','zh','hi'],'additional_localized_modules':['home','household','missions','guides','simulations','checklist','print','data','tester'],'status':'test'}))
           assert ('const BUILD = "'+build+'"') in pathlib.Path('_site/sw.js').read_text()
           PY
       - name: Tester la mise à jour depuis une ancienne installation
