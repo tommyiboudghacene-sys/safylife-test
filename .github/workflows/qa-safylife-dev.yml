@@ -98,6 +98,12 @@ jobs:
         run: |
           echo 'de16b23cdd565b42f71d48c2c459618fa3ead283e729de27bc556289cf4561a0  ../releases-dev/SAFYLIFE_GLOBAL_LOCALE.patch.gz' | sha256sum -c -
           gzip -dc ../releases-dev/SAFYLIFE_GLOBAL_LOCALE.patch.gz | patch -p1 --batch --forward
+      - name: Intégrer les traductions des jeux, de la carte, du SOS avancé et des fiches de secours
+        working-directory: _source
+        shell: bash
+        run: |
+          echo '968855ee82e8eb987d4e26978ed2321c0ddc27df1ee1984d316fc3fc6c024030  ../releases-dev/SAFYLIFE_FINAL_LOCALES.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_FINAL_LOCALES.patch.gz | patch -p1 --batch --forward
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
@@ -165,3 +171,8 @@ jobs:
         run: |
           export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
           .venv/bin/python scripts/test-extra-preparedness-dom.py
+      - name: Tester les trois modules restants dans les six langues supplémentaires
+        working-directory: _source
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          .venv/bin/python scripts/test-extra-final-dom.py

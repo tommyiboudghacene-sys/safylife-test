@@ -1,5 +1,5 @@
 """Exercise an existing installation upgrading to a new build without deleting localStorage."""
-import functools,http.server,threading,zipfile,tempfile,os,sys
+import functools,http.server,threading,zipfile,tempfile,os,sys,time
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 new=Path(sys.argv[1]).resolve()
@@ -27,7 +27,11 @@ with tempfile.TemporaryDirectory() as tmp:
             context=browser.new_context(service_workers='allow')
             page=context.new_page()
             page.goto(url+'#/monde',wait_until='load')
-            page.wait_for_function('navigator.serviceWorker.controller !== null',timeout=30000)
+            deadline=time.monotonic()+30
+            while time.monotonic()<deadline:
+                if page.evaluate("() => Boolean(navigator.serviceWorker.controller)"): break
+                page.wait_for_timeout(150)
+            assert page.evaluate("() => Boolean(navigator.serviceWorker.controller)"), "Original PWA not controlled"
             page.locator('#rp-world-language').wait_for()
             assert page.locator('#rp-world-language option').count()==3
             page.evaluate("localStorage.setItem('safylife-upgrade-regression','preserved')")
