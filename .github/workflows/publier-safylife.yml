@@ -24,7 +24,7 @@ jobs:
       - name: Récupérer le code proposé
         uses: actions/checkout@v4
         with:
-          ref: '2ec91dfc3a9b425037144d782e495925ace095d3'
+          ref: '2665616a983da8ce6f3e3ac051e8ede299c15345'
           persist-credentials: false
       - name: Configurer Node.js
         uses: actions/setup-node@v4
@@ -115,6 +115,9 @@ jobs:
         run: |
           echo '968855ee82e8eb987d4e26978ed2321c0ddc27df1ee1984d316fc3fc6c024030  ../releases-dev/SAFYLIFE_FINAL_LOCALES.patch.gz' | sha256sum -c -
           gzip -dc ../releases-dev/SAFYLIFE_FINAL_LOCALES.patch.gz | patch -p1 --batch --forward
+      - name: Corriger le débordement RTL du lien d'accessibilité
+        working-directory: _source
+        run: python3 ../releases-dev/fix-rtl-viewport.py
       - name: Réparer le renouvellement du cache PWA
         working-directory: _source
         run: python3 ../releases-dev/repair-pwa-upgrade.py
@@ -154,11 +157,27 @@ jobs:
           s=p.read_text()
           assert s.count('<span>SAFYLIFE</span>')==1
           p.write_text(s.replace('<span>SAFYLIFE</span>','<span>SAFYLIFE<small style="display:block;font-size:.65rem;color:#526b68">v. '+build+'</small></span>'))
-          pathlib.Path('_site/build-info.json').write_text(json.dumps({'build':build,'source_commit':'2ec91dfc3a9b425037144d782e495925ace095d3','destinations':237,'main_languages':['fr','en','es'],'additional_sos_languages':['pt','de','it','ar','zh','hi'],'additional_localized_modules':['home','household','missions','guides','simulations','checklist','print','data','tester','games','adventures','map','advanced_sos','first_aid'],'status':'test'}))
+          pathlib.Path('_site/build-info.json').write_text(json.dumps({'build':build,'source_commit':'2665616a983da8ce6f3e3ac051e8ede299c15345','destinations':237,'main_languages':['fr','en','es'],'additional_sos_languages':['pt','de','it','ar','zh','hi'],'additional_localized_modules':['home','household','missions','guides','simulations','checklist','print','data','tester','games','adventures','map','advanced_sos','first_aid'],'status':'test'}))
           assert ('const BUILD = "'+build+'"') in pathlib.Path('_site/sw.js').read_text()
           PY
       - name: Tester la mise à jour depuis une ancienne installation
         run: _source/.venv/bin/python releases-dev/test-pwa-upgrade.py _site SAFYLIFE_PWA.zip
+      - name: Audit mobile complet avant publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          _source/.venv/bin/python -m playwright install --with-deps webkit
+          python3 -m http.server 18798 --bind 127.0.0.1 --directory _site >/tmp/safylife-candidate.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" || true' EXIT
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:18798/build-info.json >/dev/null; then break; fi
+            sleep 1
+          done
+          export SAFYLIFE_AUDIT_BASE=http://127.0.0.1:18798/
+          export SAFYLIFE_AUDIT_BUILD=${GITHUB_SHA:0:7}
+          _source/.venv/bin/python releases-dev/audit-mobile-viewport.py chromium "Pixel 7"
+          _source/.venv/bin/python releases-dev/audit-mobile-viewport.py webkit "iPhone 13"
       - name: Configurer GitHub Pages
         uses: actions/configure-pages@v5
         with:
@@ -185,3 +204,10 @@ jobs:
             sleep 5
           done
           exit 1
+      - name: Audit mobile de la version réellement publiée
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SAFYLIFE_AUDIT_BUILD=${GITHUB_SHA:0:7}
+          _source/.venv/bin/python releases-dev/audit-mobile-viewport.py chromium "Pixel 7"
+          _source/.venv/bin/python releases-dev/audit-mobile-viewport.py webkit "iPhone 13"
