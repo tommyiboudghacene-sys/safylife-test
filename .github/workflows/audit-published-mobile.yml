@@ -1,0 +1,33 @@
+name: SAFYLIFE — audit mobile de la version publiée
+on:
+  push:
+    branches: [dev/fiabilisation-sos-v012]
+    paths:
+      - releases-dev/audit-published-mobile.py
+      - .github/workflows/audit-published-mobile.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - engine: chromium
+            profile: Pixel 7
+          - engine: webkit
+            profile: iPhone 13
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --disable-pip-version-check playwright
+      - run: python -m playwright install --with-deps ${{ matrix.engine }}
+      - name: Vérifier la PWA publiée, hors connexion, en neuf langues
+        run: python releases-dev/audit-published-mobile.py "${{ matrix.engine }}" "${{ matrix.profile }}"

@@ -1,0 +1,22 @@
+name: SAFYLIFE — collecte des sources officielles restantes
+on:
+  push:
+    branches: [dev/fiabilisation-sos-v012]
+    paths: [releases-dev/collect-emergency-sources.py, .github/workflows/review-emergency-sources.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Collecter les sections officielles pour contrôle humain
+        run: python3 releases-dev/collect-emergency-sources.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emergency-source-review
+          path: emergency-source-review.json

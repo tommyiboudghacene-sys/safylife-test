@@ -1,0 +1,184 @@
+name: SAFYLIFE — tests du lot de développement
+on:
+  push:
+    branches:
+      - dev/fiabilisation-sos-v012
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Récupérer le code proposé
+        uses: actions/checkout@v4
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Vérifier les archives et empreintes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,hashlib,zipfile,pathlib
+          base=pathlib.Path('releases-dev')
+          index=json.loads((base/'SAFYLIFE_v0_12_CHECKSUMS.json').read_text())
+          for name in ['SAFYLIFE_v0_12_SOURCE_DEV.zip','SAFYLIFE_v0_12_PWA_DEV.zip']:
+              info=index['files'][name]
+              content=(base/name).read_bytes()
+              assert len(content)==info['bytes'], f'{name}: incorrect size'
+              assert hashlib.sha256(content).hexdigest()==info['sha256'], f'{name}: incorrect sha256'
+              with zipfile.ZipFile(base/name) as z:
+                  assert z.testzip() is None
+          print('Both source and PWA archive checksums verified')
+          PY
+      - name: Extraire le projet source existant
+        shell: bash
+        run: mkdir -p _source && unzip -q releases-dev/SAFYLIFE_v0_12_SOURCE_DEV.zip -d _source
+      - name: Appliquer le correctif RC1 vérifié
+        working-directory: _source
+        shell: bash
+        run: |
+          gzip -dc ../releases-dev/SAFYLIFE_RC1.patch.gz | patch -p1 --batch --forward
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/audit-emergency-sources.mjs')
+          s=p.read_text()
+          old="'police-mobile', 'police-landline'].includes"
+          assert s.count(old)==1, "Unexpected audit schema"
+          p.write_text(s.replace(old, "'police-mobile', 'police-landline', 'fire'].includes"))
+          PY
+      - name: Appliquer l'extension des sept pays documentés
+        working-directory: _source
+        run: python3 ../releases-dev/extend-rc1-72.py
+      - name: Intégrer le lot consolidé trilingue
+        working-directory: _source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import tarfile, json, hashlib
+          from pathlib import Path
+          archive=Path('../releases-dev/SAFYLIFE_LOT_TRILINGUE.tar.gz')
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()=='44657060d64add04e6ec2bc7c9a759292ad2bae0ce373d199497e5a80f6b1294'
+          expected={'src/app/fr-secours.ts','src/app/fr-terrain.ts','src/app/fr-world.ts','src/app/guide.ts','src/app/home-i18n.ts','src/app/sos-international.ts','tests/guide-i18n.test.ts','tests/world.test.ts','scripts/audit-international-review.mjs','scripts/test-guide-i18n-dom.py'}
+          with tarfile.open(archive,'r:gz') as t:
+              assert {m.name for m in t.getmembers()}==expected|{'SHA256.json'}
+              assert all(m.isfile() for m in t.getmembers())
+              manifest=json.load(t.extractfile('SHA256.json'))
+              assert set(manifest)==expected
+              for name in sorted(expected):
+                  data=t.extractfile(name).read()
+                  assert hashlib.sha256(data).hexdigest()==manifest[name]
+                  Path(name).write_bytes(data)
+          PY
+      - name: Intégrer le référentiel des 237 destinations
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'b2e9f618938ef58b416f1e0f49de2ab471d434acb48cd3133b8f395b7da3c66d  ../releases-dev/SAFYLIFE_237.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_237.patch.gz | patch -p1 --batch --forward
+      - name: Intégrer la localisation des modules et les recettes de validation
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'fe55376c64c422392dd14163d9c02e5e1131e096c0e59b3c85bcb84335a6cdfd  ../releases-dev/SAFYLIFE_TRILINGUE.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_TRILINGUE.patch.gz | patch -p1 --batch --forward
+      - name: Intégrer les six langues SOS supplémentaires
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'cf83e94fa1527842755a232db64ac0ebf84d838c5db41debd66b9759be7ab9d5  ../releases-dev/SAFYLIFE_9_LANGUES.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_9_LANGUES.patch.gz | patch -p1 --batch --forward
+      - name: Intégrer les traductions globales et la préférence de langue
+        working-directory: _source
+        shell: bash
+        run: |
+          echo 'de16b23cdd565b42f71d48c2c459618fa3ead283e729de27bc556289cf4561a0  ../releases-dev/SAFYLIFE_GLOBAL_LOCALE.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_GLOBAL_LOCALE.patch.gz | patch -p1 --batch --forward
+      - name: Intégrer les traductions des jeux, de la carte, du SOS avancé et des fiches de secours
+        working-directory: _source
+        shell: bash
+        run: |
+          echo '968855ee82e8eb987d4e26978ed2321c0ddc27df1ee1984d316fc3fc6c024030  ../releases-dev/SAFYLIFE_FINAL_LOCALES.patch.gz' | sha256sum -c -
+          gzip -dc ../releases-dev/SAFYLIFE_FINAL_LOCALES.patch.gz | patch -p1 --batch --forward
+      - name: Adapter le test historique des fiches désormais traduites
+        working-directory: _source
+        run: python3 ../releases-dev/refresh-smoke-aid-test.py
+      - name: Corriger le débordement RTL du lien d'accessibilité
+        working-directory: _source
+        run: python3 ../releases-dev/fix-rtl-viewport.py
+      - name: Installer les dépendances du projet
+        working-directory: _source
+        run: npm ci --no-audit --no-fund
+      - name: Exécuter tous les tests QA et le contrôle des pays
+        working-directory: _source
+        shell: bash
+        run: |
+          npm run qa
+          node scripts/audit-emergency-sources.mjs
+      - name: Installer Chromium pour les tests réels du site hors connexion
+        working-directory: _source
+        shell: bash
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check playwright
+          .venv/bin/python -m playwright install --with-deps chromium
+      - name: Tester la PWA réelle hors connexion dans Chromium
+        working-directory: _source
+        shell: bash
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          .venv/bin/python scripts/test-pwa-real.py public 18781 > pwa-browser-report.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('pwa-browser-report.json'))
+          assert d.get('sw_controlled') is True
+          assert len(d.get('offline_route_text_len',{}))==14
+          assert min(d['offline_route_text_len'].values())>0
+          assert d['cold_offline_sos_len']>100
+          assert not d.get('page_errors'), d.get('page_errors')
+          assert all(not violations for violations in d.get('axe',{}).values()), d.get('axe')
+          print('Real Chromium PWA: 14/14 offline routes, cold SOS, axe and JS errors PASS')
+          PY
+      - name: Tester le SOS en français, anglais et espagnol
+        working-directory: _source
+        shell: bash
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          mkdir -p /tmp/safylife-shots
+          .venv/bin/python scripts/smoke-sos-i18n.py public 18782 /tmp/safylife-shots
+          if [ ! -x /usr/bin/chromium ]; then sudo ln -s "$CHROME" /usr/bin/chromium; fi
+          .venv/bin/python scripts/test-sos-regression-dom.py
+          .venv/bin/python scripts/test-emergency-matrix-dom.py
+          .venv/bin/python scripts/test-guide-i18n-dom.py
+          node scripts/audit-international-review.mjs
+      - name: Tester les parcours familiaux et les jeux dans Chromium
+        working-directory: _source
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          .venv/bin/python scripts/test-family-i18n-dom.py
+          .venv/bin/python scripts/test-games-i18n-dom.py
+      - name: Tester la compatibilité Firefox et WebKit
+        working-directory: _source
+        run: |
+          .venv/bin/python -m playwright install --with-deps firefox webkit
+          SAFYLIFE_BROWSERS=firefox,webkit .venv/bin/python scripts/test-family-i18n-dom.py
+          SAFYLIFE_BROWSERS=firefox,webkit .venv/bin/python scripts/test-games-i18n-dom.py
+      - name: Tester les six nouvelles langues SOS
+        working-directory: _source
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          .venv/bin/python scripts/test-extra-sos-dom.py
+      - name: Tester les écrans de préparation dans les six langues supplémentaires
+        working-directory: _source
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          .venv/bin/python scripts/test-extra-preparedness-dom.py
+      - name: Tester les trois modules restants dans les six langues supplémentaires
+        working-directory: _source
+        run: |
+          export CHROME=$(.venv/bin/python -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()")
+          .venv/bin/python scripts/test-extra-final-dom.py
