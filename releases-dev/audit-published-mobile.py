@@ -31,6 +31,7 @@ with sync_playwright() as p:
     page.reload(wait_until='load')
     def route(r,lang):
         page.evaluate('(r)=>{location.hash=r;window.dispatchEvent(new Event("hashchange"))}',r)
+        page.wait_for_timeout(200)
         page.locator('#main h1').wait_for()
         assert page.locator('html').get_attribute('lang')==lang,(r,lang)
         assert page.locator('#main').inner_text().strip(),(r,lang)
@@ -55,7 +56,15 @@ with sync_playwright() as p:
         route('#/setup',lang)
         page.locator('input[name="adults"]').fill('2')
         page.locator('input[name="water"]').fill('17')
+        previous_save=page.locator('body').get_attribute('data-saved-at')
         page.locator('button[type="submit"]').click()
+        page.wait_for_url(BASE+'#/',timeout=10000)
+        deadline=time.monotonic()+10
+        while time.monotonic()<deadline:
+            saved=page.locator('body').get_attribute('data-saved-at')
+            if saved and saved!=previous_save:break
+            page.wait_for_timeout(100)
+        assert saved and saved!=previous_save,'Save did not complete'
         page.reload(wait_until='load')
         route('#/setup',lang)
         assert page.locator('input[name="water"]').input_value()=='17'

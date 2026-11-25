@@ -22,3 +22,13 @@ s=s[:a]+'''            # Translated first aid: keep the original safety assertio
 '''+s[b:]
 s=s.replace('French-only notice with SOS link + lang=fr','localized first aid with SOS link, source and French reference')
 p.write_text(s)
+
+p=Path('scripts/test-family-i18n-dom.py')
+s=p.read_text()
+old="   if lang!='fr': assert pg.locator('#main').get_attribute('lang')=='fr'"
+assert s.count(old)==1
+s=s.replace(old,'''   assert pg.locator('html').get_attribute('lang')==lang
+   assert pg.locator('.rp-fr-only').count()==0
+   assert pg.locator('.rp-aid-tile').count()==7
+   assert pg.locator('.rp-aid-disclaimer').count()==1''')
+p.write_text(s)
