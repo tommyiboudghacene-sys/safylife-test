@@ -104,6 +104,9 @@ jobs:
         run: |
           echo '968855ee82e8eb987d4e26978ed2321c0ddc27df1ee1984d316fc3fc6c024030  ../releases-dev/SAFYLIFE_FINAL_LOCALES.patch.gz' | sha256sum -c -
           gzip -dc ../releases-dev/SAFYLIFE_FINAL_LOCALES.patch.gz | patch -p1 --batch --forward
+      - name: Adapter le test historique des fiches désormais traduites
+        working-directory: _source
+        run: python3 ../releases-dev/refresh-smoke-aid-test.py
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
