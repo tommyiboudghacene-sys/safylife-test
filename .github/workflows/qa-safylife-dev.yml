@@ -107,6 +107,9 @@ jobs:
       - name: Adapter le test historique des fiches désormais traduites
         working-directory: _source
         run: python3 ../releases-dev/refresh-smoke-aid-test.py
+      - name: Corriger le débordement RTL du lien d'accessibilité
+        working-directory: _source
+        run: python3 ../releases-dev/fix-rtl-viewport.py
       - name: Installer les dépendances du projet
         working-directory: _source
         run: npm ci --no-audit --no-fund
